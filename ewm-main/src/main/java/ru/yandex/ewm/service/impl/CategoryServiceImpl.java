@@ -7,10 +7,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.ewm.dto.category.CategoryDto;
 import ru.yandex.ewm.dto.category.NewCategoryDto;
+import ru.yandex.ewm.exception.ConflictException;
 import ru.yandex.ewm.exception.NotFoundException;
 import ru.yandex.ewm.mapper.CategoryMapper;
 import ru.yandex.ewm.model.Category;
 import ru.yandex.ewm.repository.CategoryRepository;
+import ru.yandex.ewm.repository.EventRepository;
 import ru.yandex.ewm.service.CategoryService;
 import ru.yandex.ewm.pageable.PageRequestUtil;
 
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository repo;
+    private final EventRepository eventRepo;
 
     @Override
     @Transactional
@@ -52,6 +55,12 @@ public class CategoryServiceImpl implements CategoryService {
     public void delete(long catId) {
         Category c = repo.findById(catId)
                 .orElseThrow(() -> new NotFoundException("Category with id=" + catId + " was not found"));
+
+        long used = eventRepo.countByCategory_Id(catId);
+        if (used > 0) {
+            throw new ConflictException("Категория не пустая");
+        }
+
         repo.delete(c);
     }
 
