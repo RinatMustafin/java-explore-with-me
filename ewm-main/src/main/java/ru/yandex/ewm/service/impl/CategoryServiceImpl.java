@@ -14,7 +14,7 @@ import ru.yandex.ewm.model.Category;
 import ru.yandex.ewm.repository.CategoryRepository;
 import ru.yandex.ewm.repository.EventRepository;
 import ru.yandex.ewm.service.CategoryService;
-import ru.yandex.ewm.pageable.PageRequestUtil;
+import ru.yandex.ewm.helper.PageRequestUtil;
 
 import java.util.List;
 import java.util.stream.Collectors;

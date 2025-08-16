@@ -21,7 +21,25 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             Collection<Long> users, Collection<EventState> states, Collection<Long> categories,
             LocalDateTime start, LocalDateTime end, Pageable pageable);
 
-    // Публичный поиск (через JPQL — регистронезависимый поиск по annotation/description/title)
+    @Query("""
+           select e from Event e
+           where (:usersEmpty = true or e.initiator.id in :users)
+             and (:statesEmpty = true or e.state in :states)
+             and (:categoriesEmpty = true or e.category.id in :categories)
+             and (:start is null or e.eventDate >= :start)
+             and (:end   is null or e.eventDate <= :end)
+           """)
+    Page<Event> adminSearch(boolean usersEmpty,
+                            Collection<Long> users,
+                            boolean statesEmpty,
+                            Collection<EventState> states,
+                            boolean categoriesEmpty,
+                            Collection<Long> categories,
+                            LocalDateTime start,
+                            LocalDateTime end,
+                            Pageable pageable);
+
+
     @Query("""
            select e from Event e
            where e.state = ru.yandex.ewm.model.EventState.PUBLISHED

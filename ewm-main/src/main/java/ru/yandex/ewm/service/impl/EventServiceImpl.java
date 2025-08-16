@@ -1,19 +1,21 @@
 package ru.yandex.ewm.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.ewm.dto.event.*;
 import ru.yandex.ewm.exception.ConflictException;
 import ru.yandex.ewm.exception.NotFoundException;
+import ru.yandex.ewm.helper.DateTimeUtils;
 import ru.yandex.ewm.mapper.EventMapper;
 import ru.yandex.ewm.model.*;
 import ru.yandex.ewm.repository.CategoryRepository;
 import ru.yandex.ewm.repository.EventRepository;
 import ru.yandex.ewm.repository.UserRepository;
 import ru.yandex.ewm.service.EventService;
-import ru.yandex.ewm.pageable.PageRequestUtil;
+import ru.yandex.ewm.helper.PageRequestUtil;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,6 +31,7 @@ public class EventServiceImpl implements EventService {
     private final CategoryRepository categories;
 
     private static final int MIN_HOURS_BEFORE_EVENT_USER = 2;
+    private static final int MIN_HOURS_BEFORE_PUBLISH = 1;
 
     private void ensureEventDateIsValidForUser(LocalDateTime eventDate) {
         if (eventDate.isBefore(LocalDateTime.now().plusHours(MIN_HOURS_BEFORE_EVENT_USER))) {
@@ -99,6 +102,75 @@ public class EventServiceImpl implements EventService {
                 case CANCEL_REVIEW:
                     e.setState(EventState.CANCELED);
                     break;
+            }
+        }
+
+        Event saved = events.save(e);
+        return EventMapper.toFullDto(saved, 0, 0);
+    }
+
+    private EventState parseState(String s) {
+        return EventState.valueOf(s.toUpperCase());
+    }
+
+    @Override
+    public List<EventFullDto> adminSearch(List<Long> users, List<String> states, List<Long> categories,
+                                          String rangeStart, String rangeEnd, int from, int size) {
+        var start = DateTimeUtils.parseOrNull(rangeStart);
+        var end   = DateTimeUtils.parseOrNull(rangeEnd);
+
+
+        List<EventState> stateEnums = null;
+        if (states != null && !states.isEmpty()) {
+            stateEnums = states.stream().map(this::parseState).toList();
+        }
+
+        boolean usersEmpty = (users == null || users.isEmpty());
+        boolean statesEmpty = (stateEnums == null || stateEnums.isEmpty());
+        boolean categoriesEmpty = (categories == null || categories.isEmpty());
+
+        var page = PageRequest.of(from / size, size);
+
+        return events.adminSearch(usersEmpty, users, statesEmpty, stateEnums,
+                        categoriesEmpty, categories, start, end, page)
+                .map(e -> EventMapper.toFullDto(e, 0, 0))
+                .getContent();
+    }
+
+    @Override
+    @Transactional
+    public EventFullDto adminUpdate(long eventId, UpdateEventAdminRequest dto) {
+        Event e = events.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
+
+
+        var newCategory = (dto.getCategory() == null) ? null :
+                categories.findById(dto.getCategory())
+                        .orElseThrow(() -> new NotFoundException("Category with id=" + dto.getCategory() + " was not found"));
+
+        EventMapper.applyAdminUpdate(e, dto, newCategory);
+
+        if (dto.getStateAction() != null) {
+            switch (dto.getStateAction()) {
+                case PUBLISH_EVENT -> {
+
+                    if (e.getState() != EventState.PENDING) {
+                        throw new ConflictException("Only pending events can be published");
+                    }
+
+                    if (e.getEventDate().isBefore(java.time.LocalDateTime.now().plusHours(MIN_HOURS_BEFORE_PUBLISH))) {
+                        throw new ConflictException("Event date must be at least 1 hour after publish time");
+                    }
+                    e.setState(EventState.PUBLISHED);
+                    e.setPublishedOn(java.time.LocalDateTime.now());
+                }
+                case REJECT_EVENT -> {
+
+                    if (e.getState() == EventState.PUBLISHED) {
+                        throw new ConflictException("Published events cannot be rejected");
+                    }
+                    e.setState(EventState.CANCELED);
+                }
             }
         }
 

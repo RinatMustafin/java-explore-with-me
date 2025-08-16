@@ -12,10 +12,9 @@ import ru.yandex.ewm.mapper.UserMapper;
 import ru.yandex.ewm.model.User;
 import ru.yandex.ewm.repository.UserRepository;
 import ru.yandex.ewm.service.UserService;
-import ru.yandex.ewm.pageable.PageRequestUtil;
+import ru.yandex.ewm.helper.PageRequestUtil;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service

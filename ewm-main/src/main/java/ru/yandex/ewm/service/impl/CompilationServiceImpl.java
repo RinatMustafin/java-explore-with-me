@@ -13,7 +13,7 @@ import ru.yandex.ewm.mapper.CompilationMapper;
 import ru.yandex.ewm.model.Compilation;
 import ru.yandex.ewm.repository.CompilationRepository;
 import ru.yandex.ewm.service.CompilationService;
-import ru.yandex.ewm.pageable.PageRequestUtil;
+import ru.yandex.ewm.helper.PageRequestUtil;
 
 import java.util.List;
 import java.util.stream.Collectors;

@@ -1,4 +1,4 @@
-package ru.yandex.ewm.pageable;
+package ru.yandex.ewm.helper;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

@@ -10,5 +10,8 @@ public interface EventService {
     EventFullDto getUserEvent(long userId, long eventId);
     EventFullDto updateUserEvent(long userId, long eventId, UpdateEventUserRequest dto);
 
+    List<EventFullDto> adminSearch(List<Long> users, List<String> states, List<Long> categories,
+                                   String rangeStart, String rangeEnd, int from, int size);
 
+    EventFullDto adminUpdate(long eventId, UpdateEventAdminRequest dto);
 }
