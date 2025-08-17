@@ -3,6 +3,7 @@ package ru.yandex.ewm.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.ewm.dto.event.*;
@@ -177,4 +178,69 @@ public class EventServiceImpl implements EventService {
         Event saved = events.save(e);
         return EventMapper.toFullDto(saved, 0, 0);
     }
+
+    @Override
+    public List<EventShortDto> publicSearch(String text, List<Long> categories,
+                                            Boolean paid, String rangeStart,
+                                            String rangeEnd, Boolean onlyAvailable,
+                                            EventSort sort, int from, int size) {
+
+        var start = (DateTimeUtils.parseOrNull(rangeStart) != null)
+                ? DateTimeUtils.parseOrNull(rangeStart)
+                : java.time.LocalDateTime.now();
+        var end = (DateTimeUtils.parseOrNull(rangeEnd) != null)
+                ? DateTimeUtils.parseOrNull(rangeEnd)
+                : java.time.LocalDateTime.now().plusYears(100);
+
+        boolean categoryIdsEmpty = (categories == null || categories.isEmpty());
+
+        Pageable page;
+        if (sort == EventSort.EVENT_DATE) {
+            page = PageRequest.of(from / size, size, Sort.by(Sort.Direction.ASC, "eventDate"));
+        } else {
+
+            page = PageRequest.of(from / size, size);
+        }
+
+
+        var slice = events.publicSearch(text, paid, categoryIdsEmpty, categories, start, end, page)
+                .map(e -> EventMapper.toShortDto(e,
+                        0,  // confirmedRequests (позже посчитаем по заявкам)
+                        0   // views (позже возьмём из stats)
+                ))
+                .getContent();
+
+        // 4) onlyAvailable (упрощённая логика на этом шаге)
+        if (Boolean.TRUE.equals(onlyAvailable)) {
+            // Пока считаем доступными те, у кого participantLimit == 0 (безлимит).
+            // Позже добавим: (confirmedRequests < participantLimit)
+            slice = slice.stream()
+                    .filter(dto -> {
+                        // у нас в ShortDto нет participantLimit, так что фильтровать будем раньше, по Event,
+                        // но чтобы не усложнять — просто оставим как есть. ЗАПОЛНИМ ПОСЛЕ заявок.
+                        return true; // временно не фильтруем — иначе теряем лимитные события
+                    })
+                    .toList();
+        }
+
+        // 5) Если запросили сортировку по VIEWS — сейчас все 0, смысла нет.
+        // После интеграции со stats — отсортируем в памяти по полю views.
+
+        return slice;
+    }
+
+    @Override
+    public EventFullDto getPublishedEvent(long eventId) {
+        Event e = events.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
+        if (e.getState() != EventState.PUBLISHED) {
+            // В публичной зоне не показываем неопубликованные
+            throw new NotFoundException("Event with id=" + eventId + " was not found");
+        }
+        return EventMapper.toFullDto(e,
+                0, // confirmedRequests — позже посчитаем
+                0  // views — позже подтянем из статистики
+        );
+    }
+
 }
