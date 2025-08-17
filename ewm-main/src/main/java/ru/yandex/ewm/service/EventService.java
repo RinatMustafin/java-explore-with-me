@@ -1,5 +1,6 @@
 package ru.yandex.ewm.service;
 
+import jakarta.servlet.http.HttpServletRequest;
 import ru.yandex.ewm.dto.event.*;
 import java.util.List;
 
@@ -19,7 +20,7 @@ public interface EventService {
     List<EventShortDto> publicSearch(String text, List<Long> categories,
                                      Boolean paid, String rangeStart,
                                      String rangeEnd, Boolean onlyAvailable,
-                                     EventSort sort, int from, int size);
+                                     EventSort sort, int from, int size, HttpServletRequest request);
 
-    EventFullDto getPublishedEvent(long eventId);
+    EventFullDto getPublishedEvent(long eventId, HttpServletRequest request);
 }

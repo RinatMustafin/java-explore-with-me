@@ -1,11 +1,16 @@
 package ru.yandex.ewm.service.impl;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.stats.EndpointHit;
+import ru.practicum.stats.ViewStats;
+import ru.practicum.statsclient.StatsClient;
 import ru.yandex.ewm.dto.event.*;
 import ru.yandex.ewm.exception.ConflictException;
 import ru.yandex.ewm.exception.NotFoundException;
@@ -19,7 +24,8 @@ import ru.yandex.ewm.service.EventService;
 import ru.yandex.ewm.helper.PageRequestUtil;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,6 +37,12 @@ public class EventServiceImpl implements EventService {
     private final UserRepository users;
     private final CategoryRepository categories;
 
+    private final StatsClient statsClient;
+
+    @Value("${stats.app:ewm-main}")
+    private String appName;
+
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final int MIN_HOURS_BEFORE_EVENT_USER = 2;
     private static final int MIN_HOURS_BEFORE_PUBLISH = 1;
 
@@ -180,67 +192,105 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public List<EventShortDto> publicSearch(String text, List<Long> categories,
-                                            Boolean paid, String rangeStart,
-                                            String rangeEnd, Boolean onlyAvailable,
-                                            EventSort sort, int from, int size) {
+    public List<EventShortDto> publicSearch(String text, List<Long> categories, Boolean paid,
+                                            String rangeStart, String rangeEnd, Boolean onlyAvailable,
+                                            EventSort sort, int from, int size, HttpServletRequest request) {
 
-        var start = (DateTimeUtils.parseOrNull(rangeStart) != null)
+        saveHit(request);
+
+
+        LocalDateTime start = (DateTimeUtils.parseOrNull(rangeStart) != null)
                 ? DateTimeUtils.parseOrNull(rangeStart)
-                : java.time.LocalDateTime.now();
-        var end = (DateTimeUtils.parseOrNull(rangeEnd) != null)
+                : LocalDateTime.now();
+        LocalDateTime end = (DateTimeUtils.parseOrNull(rangeEnd) != null)
                 ? DateTimeUtils.parseOrNull(rangeEnd)
-                : java.time.LocalDateTime.now().plusYears(100);
+                : LocalDateTime.now().plusYears(100);
 
         boolean categoryIdsEmpty = (categories == null || categories.isEmpty());
 
-        Pageable page;
-        if (sort == EventSort.EVENT_DATE) {
-            page = PageRequest.of(from / size, size, Sort.by(Sort.Direction.ASC, "eventDate"));
-        } else {
 
-            page = PageRequest.of(from / size, size);
-        }
+        var page = (sort == EventSort.EVENT_DATE)
+                ? PageRequest.of(from / size, size, Sort.by(Sort.Direction.ASC, "eventDate"))
+                : PageRequest.of(from / size, size);
+
+        var pageEntities = events.publicSearch(text, paid, categoryIdsEmpty, categories, start, end, page);
+        List<Event> entityList = pageEntities.getContent();
 
 
-        var slice = events.publicSearch(text, paid, categoryIdsEmpty, categories, start, end, page)
-                .map(e -> EventMapper.toShortDto(e,
-                        0,  // confirmedRequests (позже посчитаем по заявкам)
-                        0   // views (позже возьмём из stats)
-                ))
-                .getContent();
+        List<String> uris = entityList.stream().map(e -> "/events/" + e.getId()).toList();
 
-        // 4) onlyAvailable (упрощённая логика на этом шаге)
-        if (Boolean.TRUE.equals(onlyAvailable)) {
-            // Пока считаем доступными те, у кого participantLimit == 0 (безлимит).
-            // Позже добавим: (confirmedRequests < participantLimit)
-            slice = slice.stream()
-                    .filter(dto -> {
-                        // у нас в ShortDto нет participantLimit, так что фильтровать будем раньше, по Event,
-                        // но чтобы не усложнять — просто оставим как есть. ЗАПОЛНИМ ПОСЛЕ заявок.
-                        return true; // временно не фильтруем — иначе теряем лимитные события
-                    })
+
+        LocalDateTime statsStart = entityList.stream()
+                .map(e -> e.getPublishedOn() != null ? e.getPublishedOn() : e.getCreatedOn())
+                .min(LocalDateTime::compareTo)
+                .orElse(LocalDateTime.now().minusYears(100));
+        LocalDateTime statsEnd = LocalDateTime.now();
+
+        Map<String, Long> viewsMap = getViews(uris, statsStart, statsEnd);
+
+
+        List<EventShortDto> result = entityList.stream()
+                .map(e -> {
+                    long views = viewsMap.getOrDefault("/events/" + e.getId(), 0L);
+                    return EventMapper.toShortDto(e, 0, views);
+                })
+                .toList();
+
+        if (sort == EventSort.VIEWS) {
+            result = result.stream()
+                    .sorted(Comparator.comparingLong(EventShortDto::getViews).reversed()
+                            .thenComparing(EventShortDto::getEventDate))
                     .toList();
         }
 
-        // 5) Если запросили сортировку по VIEWS — сейчас все 0, смысла нет.
-        // После интеграции со stats — отсортируем в памяти по полю views.
-
-        return slice;
+        return result;
     }
 
     @Override
-    public EventFullDto getPublishedEvent(long eventId) {
+    public EventFullDto getPublishedEvent(long eventId, HttpServletRequest request) {
+
+        saveHit(request);
+
+
         Event e = events.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
         if (e.getState() != EventState.PUBLISHED) {
-            // В публичной зоне не показываем неопубликованные
             throw new NotFoundException("Event with id=" + eventId + " was not found");
         }
-        return EventMapper.toFullDto(e,
-                0, // confirmedRequests — позже посчитаем
-                0  // views — позже подтянем из статистики
-        );
+
+
+        String uri = "/events/" + e.getId();
+        LocalDateTime start = (e.getPublishedOn() != null) ? e.getPublishedOn() : e.getCreatedOn();
+        LocalDateTime end = LocalDateTime.now();
+        long views = getViews(List.of(uri), start, end).getOrDefault(uri, 0L);
+
+        return EventMapper.toFullDto(e, 0, views);
+    }
+
+    private void saveHit(HttpServletRequest req) {
+        try {
+            EndpointHit hit = new EndpointHit();
+            hit.setApp(appName);
+            hit.setUri(req.getRequestURI());              // "/events" или "/events/{id}"
+            hit.setIp(Optional.ofNullable(req.getHeader("X-Forwarded-For")).orElse(req.getRemoteAddr()));
+            hit.setTimestamp(LocalDateTime.now().format(FMT));
+            statsClient.saveHit(hit);
+        } catch (Exception ex) {
+
+        }
+    }
+
+    private Map<String, Long> getViews(Collection<String> uris, LocalDateTime start, LocalDateTime end) {
+        try {
+            List<ViewStats> stats = statsClient.getStats(start, end, new ArrayList<>(uris), false);
+            Map<String, Long> map = new HashMap<>();
+            for (ViewStats s : stats) {
+                map.put(s.getUri(), s.getHits());
+            }
+            return map;
+        } catch (Exception ex) {
+            return Collections.emptyMap();
+        }
     }
 
 }
