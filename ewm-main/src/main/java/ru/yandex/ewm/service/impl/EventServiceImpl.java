@@ -3,6 +3,7 @@ package ru.yandex.ewm.service.impl;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -19,6 +20,7 @@ import ru.yandex.ewm.mapper.EventMapper;
 import ru.yandex.ewm.model.*;
 import ru.yandex.ewm.repository.CategoryRepository;
 import ru.yandex.ewm.repository.EventRepository;
+import ru.yandex.ewm.repository.RequestRepository;
 import ru.yandex.ewm.repository.UserRepository;
 import ru.yandex.ewm.service.EventService;
 import ru.yandex.ewm.helper.PageRequestUtil;
@@ -38,6 +40,8 @@ public class EventServiceImpl implements EventService {
     private final CategoryRepository categories;
 
     private final StatsClient statsClient;
+
+    private final RequestRepository requests;
 
     @Value("${stats.app:ewm-main}")
     private String appName;
@@ -68,10 +72,14 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public List<EventShortDto> getUserEvents(long userId, int from, int size) {
-        Pageable page = PageRequestUtil.of(from, size);
-        return events.findAllByInitiator_Id(userId, page).getContent().stream()
-                .map(e -> EventMapper.toShortDto(e, 0, 0))
-                .collect(Collectors.toList());
+        var page = PageRequestUtil.of(from, size);
+        var pageEntities = events.findAllByInitiator_Id(userId, page);
+        var ids = pageEntities.getContent().stream().map(Event::getId).toList();
+        var confirmedMap = getConfirmedMap(ids);
+
+        return pageEntities.getContent().stream()
+                .map(e -> EventMapper.toShortDto(e, confirmedMap.getOrDefault(e.getId(), 0), 0L))
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Override
@@ -79,9 +87,10 @@ public class EventServiceImpl implements EventService {
         Event e = events.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
         if (!e.getInitiator().getId().equals(userId)) {
-            throw new NotFoundException("Event with id=" + eventId + " was not found"); // маскируем чужое событие
+            throw new NotFoundException("Event with id=" + eventId + " was not found");
         }
-        return EventMapper.toFullDto(e, 0, 0);
+        int confirmed = getConfirmedFor(e.getId());
+        return EventMapper.toFullDto(e, confirmed, 0L);
     }
 
     @Override
@@ -119,7 +128,9 @@ public class EventServiceImpl implements EventService {
         }
 
         Event saved = events.save(e);
-        return EventMapper.toFullDto(saved, 0, 0);
+        int confirmed = getConfirmedFor(saved.getId());
+
+        return ru.yandex.ewm.mapper.EventMapper.toFullDto(saved, confirmed, 0L);
     }
 
     private EventState parseState(String s) {
@@ -142,12 +153,26 @@ public class EventServiceImpl implements EventService {
         boolean statesEmpty = (stateEnums == null || stateEnums.isEmpty());
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
 
-        var page = PageRequest.of(from / size, size);
+        Pageable page = PageRequest.of(from / size, size);
 
-        return events.adminSearch(usersEmpty, users, statesEmpty, stateEnums,
-                        categoriesEmpty, categories, start, end, page)
-                .map(e -> EventMapper.toFullDto(e, 0, 0))
-                .getContent();
+        Page <Event> pageData =
+                events.adminSearch(usersEmpty, users, statesEmpty, stateEnums, categoriesEmpty, categories, start, end, page);
+
+        List<Event> list = pageData.getContent();
+
+        List<Long> ids = new ArrayList<Long>(list.size());
+        for (Event e : list) {
+            ids.add(e.getId());
+        }
+        Map<Long, Integer> confirmedMap = getConfirmedMap(ids);
+
+        List<EventFullDto> result = new ArrayList<EventFullDto>(list.size());
+        for (Event e : list) {
+            int confirmed = confirmedMap.getOrDefault(e.getId(), 0);
+            EventFullDto dto = EventMapper.toFullDto(e, confirmed, 0L);
+            result.add(dto);
+        }
+        return result;
     }
 
     @Override
@@ -188,7 +213,8 @@ public class EventServiceImpl implements EventService {
         }
 
         Event saved = events.save(e);
-        return EventMapper.toFullDto(saved, 0, 0);
+        int confirmed = getConfirmedFor(saved.getId());
+        return EventMapper.toFullDto(saved, confirmed, 0L);
     }
 
     @Override
@@ -229,12 +255,30 @@ public class EventServiceImpl implements EventService {
         Map<String, Long> viewsMap = getViews(uris, statsStart, statsEnd);
 
 
+        var ids = entityList.stream().map(Event::getId).toList();
+
+        var confirmedMap = getConfirmedMap(ids);
+
         List<EventShortDto> result = entityList.stream()
                 .map(e -> {
                     long views = viewsMap.getOrDefault("/events/" + e.getId(), 0L);
-                    return EventMapper.toShortDto(e, 0, views);
+                    int confirmed = confirmedMap.getOrDefault(e.getId(), 0);
+                    return EventMapper.toShortDto(e, confirmed, views);
                 })
                 .toList();
+
+        if (Boolean.TRUE.equals(onlyAvailable)) {
+            result = result.stream().filter(dto -> {
+                Event src = entityList.stream()
+                        .filter(e -> e.getId().equals(dto.getId()))
+                        .findFirst().orElse(null);
+                if (src == null) return false;
+                Integer limit = src.getParticipantLimit();
+                if (limit == null || limit == 0) return true;
+                int confirmed = confirmedMap.getOrDefault(src.getId(), 0);
+                return confirmed < limit;
+            }).toList();
+        }
 
         if (sort == EventSort.VIEWS) {
             result = result.stream()
@@ -263,15 +307,15 @@ public class EventServiceImpl implements EventService {
         LocalDateTime start = (e.getPublishedOn() != null) ? e.getPublishedOn() : e.getCreatedOn();
         LocalDateTime end = LocalDateTime.now();
         long views = getViews(List.of(uri), start, end).getOrDefault(uri, 0L);
-
-        return EventMapper.toFullDto(e, 0, views);
+        int confirmed = getConfirmedFor(e.getId());
+        return EventMapper.toFullDto(e, confirmed, views);
     }
 
     private void saveHit(HttpServletRequest req) {
         try {
             EndpointHit hit = new EndpointHit();
             hit.setApp(appName);
-            hit.setUri(req.getRequestURI());              // "/events" или "/events/{id}"
+            hit.setUri(req.getRequestURI());
             hit.setIp(Optional.ofNullable(req.getHeader("X-Forwarded-For")).orElse(req.getRemoteAddr()));
             hit.setTimestamp(LocalDateTime.now().format(FMT));
             statsClient.saveHit(hit);
@@ -292,5 +336,22 @@ public class EventServiceImpl implements EventService {
             return Collections.emptyMap();
         }
     }
+
+    private Map<Long, Integer> getConfirmedMap(Collection<Long> eventIds) {
+        if (eventIds == null || eventIds.isEmpty()) return Collections.emptyMap();
+        var rows = requests.countConfirmedByEventIds(eventIds);
+        var map = new HashMap<Long, Integer>(rows.size());
+        for (Object[] row : rows) {
+            Long id = (Long) row[0];
+            Long cnt = (Long) row[1];
+            map.put(id, cnt.intValue());
+        }
+        return map;
+    }
+
+    private int getConfirmedFor(long eventId) {
+        return getConfirmedMap(List.of(eventId)).getOrDefault(eventId, 0);
+    }
+
 
 }
