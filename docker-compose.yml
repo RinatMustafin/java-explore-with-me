@@ -48,11 +48,11 @@ services:
       timeout: 5s
       retries: 15
 
-  ewm-main:
+  ewm-service:
     build:
       context: ./ewm-main
       dockerfile: Dockerfile
-    container_name: ewm-main
+    container_name: ewm-service
     ports:
       - "8080:8080"
     environment:
