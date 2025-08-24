@@ -1,12 +1,13 @@
 package ru.yandex.ewm.model;
 
+import jakarta.persistence.Embeddable;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import jakarta.persistence.Embeddable;
-
-@Getter @Setter @NoArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
 @Embeddable
 public class Location {
     private Float lat;

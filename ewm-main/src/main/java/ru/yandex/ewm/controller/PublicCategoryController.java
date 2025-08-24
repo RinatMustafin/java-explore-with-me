@@ -19,7 +19,7 @@ public class PublicCategoryController {
     private final CategoryService service;
 
     @GetMapping
-    public List <CategoryDto> getAll(@RequestParam(defaultValue = "0") @PositiveOrZero Integer from,
+    public List<CategoryDto> getAll(@RequestParam(defaultValue = "0") @PositiveOrZero Integer from,
                                      @RequestParam(defaultValue = "10") @Positive Integer size) {
         return service.getAll(from, size);
     }

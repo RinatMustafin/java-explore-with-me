@@ -1,13 +1,15 @@
 package ru.yandex.ewm.model;
 
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-@Getter @Setter @NoArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "requests",
         uniqueConstraints = @UniqueConstraint(name = "uq_request_unique", columnNames = {"requester_id", "event_id"}))

@@ -141,7 +141,7 @@ public class EventServiceImpl implements EventService {
     public List<EventFullDto> adminSearch(List<Long> users, List<String> states, List<Long> categories,
                                           String rangeStart, String rangeEnd, int from, int size) {
         var start = DateTimeUtils.parseOrNull(rangeStart);
-        var end   = DateTimeUtils.parseOrNull(rangeEnd);
+        var end = DateTimeUtils.parseOrNull(rangeEnd);
 
 
         List<EventState> stateEnums = null;
@@ -155,7 +155,7 @@ public class EventServiceImpl implements EventService {
 
         Pageable page = PageRequest.of(from / size, size);
 
-        Page <Event> pageData =
+        Page<Event> pageData =
                 events.adminSearch(usersEmpty, users, statesEmpty, stateEnums, categoriesEmpty, categories, start, end, page);
 
         List<Event> list = pageData.getContent();
@@ -318,7 +318,7 @@ public class EventServiceImpl implements EventService {
             hit.setTimestamp(LocalDateTime.now().format(FMT));
             statsClient.saveHit(hit);
         } catch (Exception ex) {
-
+            //skip
         }
     }
 
