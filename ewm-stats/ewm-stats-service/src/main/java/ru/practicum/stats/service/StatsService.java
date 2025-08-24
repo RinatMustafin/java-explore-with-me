@@ -1,7 +1,9 @@
 package ru.practicum.stats.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import ru.practicum.stats.EndpointHit;
 import ru.practicum.stats.ViewStats;
 import ru.practicum.stats.model.Hit;
@@ -32,10 +34,23 @@ public class StatsService {
         LocalDateTime startTime = LocalDateTime.parse(start, FORMATTER);
         LocalDateTime endTime = LocalDateTime.parse(end, FORMATTER);
 
+        if (endTime.isBefore(startTime)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "End time must be after start time"
+            );
+        }
+
+        boolean withUris = uris != null && !uris.isEmpty();
+
+
+
         if (unique) {
-            return repository.getUniqueStats(startTime, endTime, uris);
+            return withUris ? repository.getUniqueStatsByUris(startTime, endTime, uris)
+                    : repository.getUniqueStats(startTime, endTime);
         } else {
-            return repository.getAllStats(startTime, endTime, uris);
+            return withUris ? repository.getAllStatsByUris(startTime, endTime, uris)
+                    : repository.getAllStats(startTime, endTime);
         }
     }
 }
