@@ -16,19 +16,19 @@ import ru.yandex.ewm.dto.event.*;
 import ru.yandex.ewm.exception.ConflictException;
 import ru.yandex.ewm.exception.NotFoundException;
 import ru.yandex.ewm.helper.DateTimeUtils;
+import ru.yandex.ewm.helper.PageRequestUtil;
 import ru.yandex.ewm.mapper.EventMapper;
-import ru.yandex.ewm.model.*;
+import ru.yandex.ewm.model.Event;
+import ru.yandex.ewm.model.EventState;
 import ru.yandex.ewm.repository.CategoryRepository;
 import ru.yandex.ewm.repository.EventRepository;
 import ru.yandex.ewm.repository.RequestRepository;
 import ru.yandex.ewm.repository.UserRepository;
 import ru.yandex.ewm.service.EventService;
-import ru.yandex.ewm.helper.PageRequestUtil;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -293,15 +293,13 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventFullDto getPublishedEvent(long eventId, HttpServletRequest request) {
 
-        saveHit(request);
-
-
         Event e = events.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
         if (e.getState() != EventState.PUBLISHED) {
             throw new NotFoundException("Event with id=" + eventId + " was not found");
         }
 
+        saveHit(request);
 
         String uri = "/events/" + e.getId();
         LocalDateTime start = (e.getPublishedOn() != null) ? e.getPublishedOn() : e.getCreatedOn();
