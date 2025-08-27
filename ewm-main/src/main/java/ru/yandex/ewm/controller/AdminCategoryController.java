@@ -2,6 +2,7 @@ package ru.yandex.ewm.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.ewm.dto.category.CategoryDto;
@@ -19,6 +20,7 @@ public class AdminCategoryController {
     private final CategoryService service;
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public CategoryDto create(@Valid @RequestBody NewCategoryDto dto) {
         return service.create(dto);
     }
@@ -30,6 +32,7 @@ public class AdminCategoryController {
     }
 
     @DeleteMapping("/{catId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long catId) {
         service.delete(catId);
     }

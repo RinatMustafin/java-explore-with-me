@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import ru.yandex.ewm.model.Event;
 import ru.yandex.ewm.model.EventState;
 
@@ -26,8 +27,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
            where (:usersEmpty = true or e.initiator.id in :users)
              and (:statesEmpty = true or e.state in :states)
              and (:categoriesEmpty = true or e.category.id in :categories)
-             and (:start is null or e.eventDate >= :start)
-             and (:end   is null or e.eventDate <= :end)
+              and e.eventDate >= :start
+              and e.eventDate <= :end
            """)
     Page<Event> adminSearch(boolean usersEmpty,
                             Collection<Long> users,
@@ -43,19 +44,23 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @Query("""
            select e from Event e
            where e.state = ru.yandex.ewm.model.EventState.PUBLISHED
-             and (:text is null or lower(e.annotation) like lower(concat('%', :text, '%'))
-                  or lower(e.description) like lower(concat('%', :text, '%'))
-                  or lower(e.title) like lower(concat('%', :text, '%')))
+              and (
+                   :pattern is null
+                or lower(e.annotation)  like :pattern
+                or lower(e.description) like :pattern
+                or lower(e.title)       like :pattern
+              )
              and (:paid is null or e.paid = :paid)
              and (:categoryIdsEmpty = true or e.category.id in (:categoryIds))
              and e.eventDate between :start and :end
+            order by e.eventDate asc
            """)
-    Page<Event> publicSearch(String text,
-                             Boolean paid,
-                             boolean categoryIdsEmpty,
-                             Collection<Long> categoryIds,
-                             LocalDateTime start,
-                             LocalDateTime end,
+    Page<Event> publicSearch(@Param("pattern") String pattern,
+                             @Param("paid") Boolean paid,
+                             @Param("categoryIdsEmpty") boolean categoryIdsEmpty,
+                             @Param("categoryIds") Collection<Long> categoryIds,
+                             @Param("start") LocalDateTime start,
+                             @Param("end") LocalDateTime end,
                              Pageable pageable);
 
     List<Event> findAllByIdIn(Collection<Long> ids);

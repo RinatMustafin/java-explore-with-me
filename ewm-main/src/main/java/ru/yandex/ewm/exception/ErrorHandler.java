@@ -4,6 +4,7 @@ import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,12 +15,25 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class ErrorHandler {
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleNotReadable(HttpMessageNotReadableException e) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        ApiError body = ApiError.of(
+                e.getMostSpecificCause() != null ? e.getMostSpecificCause().getMessage() : e.getMessage(),
+                "Некорректный запрос.",
+                status.value(),
+                status.name()
+        );
+        return new ResponseEntity<>(body, status);
+    }
+
     // 400 — некорректный запрос/валидация
     @ExceptionHandler({
             MethodArgumentNotValidException.class,
             ConstraintViolationException.class,
             MissingServletRequestParameterException.class,
-            MethodArgumentTypeMismatchException.class
+            MethodArgumentTypeMismatchException.class,
+            IllegalArgumentException.class
     })
     public ResponseEntity<ApiError> handleBadRequest(Exception e) {
         HttpStatus status = HttpStatus.BAD_REQUEST;

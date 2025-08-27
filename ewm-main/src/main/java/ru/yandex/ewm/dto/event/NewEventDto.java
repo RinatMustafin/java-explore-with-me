@@ -4,6 +4,7 @@ package ru.yandex.ewm.dto.event;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -33,7 +34,8 @@ public class NewEventDto {
     @NotNull
     LocationDto location;
 
-    Boolean paid;               // default=false
+    Boolean paid;
+    @PositiveOrZero
     Integer participantLimit;   // default=0
     Boolean requestModeration;  // default=true
 }

@@ -9,7 +9,9 @@ import ru.yandex.ewm.dto.request.ParticipationRequestDto;
 import ru.yandex.ewm.exception.ConflictException;
 import ru.yandex.ewm.exception.NotFoundException;
 import ru.yandex.ewm.mapper.RequestMapper;
-import ru.yandex.ewm.model.*;
+import ru.yandex.ewm.model.EventState;
+import ru.yandex.ewm.model.ParticipationRequest;
+import ru.yandex.ewm.model.RequestStatus;
 import ru.yandex.ewm.repository.EventRepository;
 import ru.yandex.ewm.repository.RequestRepository;
 import ru.yandex.ewm.repository.UserRepository;
@@ -28,7 +30,6 @@ public class RequestServiceImpl implements RequestService {
     private final UserRepository users;
     private final EventRepository events;
 
-    // ===== Пользователь =====
 
     @Override
     public List<ParticipationRequestDto> getUserRequests(long userId) {

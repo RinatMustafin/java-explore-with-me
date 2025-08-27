@@ -2,20 +2,21 @@ package ru.yandex.ewm.dto.compilation;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Value;
-
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
-@Value
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class NewCompilationDto {
     @NotBlank
     @Size(min = 1, max = 50)
     String title;
 
+    List<Long> events;
 
     Boolean pinned;
-
-
-    List<Long> events;
 }

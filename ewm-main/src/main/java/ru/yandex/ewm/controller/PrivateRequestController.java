@@ -1,6 +1,7 @@
 package ru.yandex.ewm.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.ewm.dto.request.ParticipationRequestDto;
@@ -21,7 +22,9 @@ public class PrivateRequestController {
         return service.getUserRequests(userId);
     }
 
+
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public ParticipationRequestDto addRequest(@PathVariable long userId,
                                               @RequestParam long eventId) {
         return service.addRequest(userId, eventId);

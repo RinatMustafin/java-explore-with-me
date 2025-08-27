@@ -33,10 +33,10 @@ public class Event {
             foreignKey = @ForeignKey(name = "fk_event_category"))
     private Category category;
 
-    @Column(length = 2000, nullable = false)
+    @Column(columnDefinition = "text", length = 2000, nullable = false)
     private String annotation;
 
-    @Column(length = 7000, nullable = false)
+    @Column(columnDefinition = "text", length = 7000, nullable = false)
     private String description;
 
     @Column(length = 120, nullable = false)

@@ -2,14 +2,16 @@ package ru.practicum.statsclient;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 import ru.practicum.stats.EndpointHit;
 import ru.practicum.stats.ViewStats;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class StatsClient {
 
@@ -34,27 +36,26 @@ public class StatsClient {
 
     public List<ViewStats> getStats(LocalDateTime start, LocalDateTime end, List<String> uris, boolean unique) {
         try {
-            StringBuilder url = new StringBuilder(baseUrl).append("/stats?")
-                    .append("start=").append(enc(start.format(FMT)))
-                    .append("&end=").append(enc(end.format(FMT)))
-                    .append("&unique=").append(unique);
+            UriComponentsBuilder b = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl)
+                    .path("/stats")
+                    .queryParam("start", start.format(FMT))
+                    .queryParam("end", end.format(FMT))
+                    .queryParam("unique", unique);
 
-            if (uris != null) {
+            if (uris != null && !uris.isEmpty()) {
                 for (String u : uris) {
-                    url.append("&uris=").append(enc(u));
+                    b.queryParam("uris", u);
                 }
             }
 
-            ResponseEntity<ViewStats[]> resp = rest.getForEntity(url.toString(), ViewStats[].class);
+            URI uri = b.encode().build().toUri();
+            ResponseEntity<ViewStats[]> resp = rest.getForEntity(uri, ViewStats[].class);
             ViewStats[] body = resp.getBody();
             return (body == null) ? Collections.emptyList() : Arrays.asList(body);
-
         } catch (Exception ignored) {
             return Collections.emptyList();
         }
     }
 
-    private static String enc(String s) {
-        return URLEncoder.encode(s, StandardCharsets.UTF_8);
-    }
 }

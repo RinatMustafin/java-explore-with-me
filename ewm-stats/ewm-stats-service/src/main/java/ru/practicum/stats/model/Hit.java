@@ -1,5 +1,6 @@
 package ru.practicum.stats.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -23,5 +24,6 @@ public class Hit {
     String app;
     String uri;
     String ip;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     LocalDateTime timestamp;
 }

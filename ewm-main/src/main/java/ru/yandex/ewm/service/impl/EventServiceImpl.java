@@ -52,7 +52,7 @@ public class EventServiceImpl implements EventService {
 
     private void ensureEventDateIsValidForUser(LocalDateTime eventDate) {
         if (eventDate.isBefore(LocalDateTime.now().plusHours(MIN_HOURS_BEFORE_EVENT_USER))) {
-            throw new ConflictException("Событие должно быть за два часа");
+            throw new IllegalArgumentException("Событие должно быть за два часа");
         }
     }
 
@@ -140,9 +140,12 @@ public class EventServiceImpl implements EventService {
     @Override
     public List<EventFullDto> adminSearch(List<Long> users, List<String> states, List<Long> categories,
                                           String rangeStart, String rangeEnd, int from, int size) {
-        var start = DateTimeUtils.parseOrNull(rangeStart);
-        var end = DateTimeUtils.parseOrNull(rangeEnd);
 
+        LocalDateTime start = DateTimeUtils.parseOrNull(rangeStart);
+        LocalDateTime end = DateTimeUtils.parseOrNull(rangeEnd);
+
+        if (start == null) start = LocalDateTime.now().minusYears(100);
+        if (end == null) end = LocalDateTime.now().plusYears(100);
 
         List<EventState> stateEnums = null;
         if (states != null && !states.isEmpty()) {
@@ -181,6 +184,38 @@ public class EventServiceImpl implements EventService {
         Event e = events.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
 
+
+        if (dto.getTitle() != null) {
+            String t = dto.getTitle().trim();
+            if (t.length() < 3 || t.length() > 120) {
+                throw new IllegalArgumentException("title must be between 3 and 120 characters");
+            }
+        }
+
+        if (dto.getDescription() != null) {
+            String d = dto.getDescription().trim();
+            if (d.length() < 20 || d.length() > 7000) {
+                throw new IllegalArgumentException("description must be between 20 and 7000 characters");
+            }
+        }
+
+        if (dto.getAnnotation() != null) {
+            String a = dto.getAnnotation().trim();
+            if (a.length() < 20 || a.length() > 2000) {
+                throw new IllegalArgumentException("annotation must be between 20 and 2000 characters");
+            }
+        }
+
+        if (dto.getEventDate() != null && dto.getEventDate().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("eventDate must be in the future");
+        }
+
+        if (dto.getTitle() != null) {
+            String t = dto.getTitle().trim();
+            if (t.length() < 3 || t.length() > 120) {
+                throw new IllegalArgumentException("title must be between 3 and 120 characters");
+            }
+        }
 
         var newCategory = (dto.getCategory() == null) ? null :
                 categories.findById(dto.getCategory())
@@ -224,13 +259,15 @@ public class EventServiceImpl implements EventService {
 
         saveHit(request);
 
+        LocalDateTime start = DateTimeUtils.parseOrNull(rangeStart);
+        LocalDateTime end = DateTimeUtils.parseOrNull(rangeEnd);
 
-        LocalDateTime start = (DateTimeUtils.parseOrNull(rangeStart) != null)
-                ? DateTimeUtils.parseOrNull(rangeStart)
-                : LocalDateTime.now();
-        LocalDateTime end = (DateTimeUtils.parseOrNull(rangeEnd) != null)
-                ? DateTimeUtils.parseOrNull(rangeEnd)
-                : LocalDateTime.now().plusYears(100);
+        if (start != null && end != null && !end.isAfter(start)) {
+            throw new IllegalArgumentException("rangeEnd must be after rangeStart");
+        }
+
+        start = (start != null) ? start : LocalDateTime.now();
+        end = (end != null) ? end : LocalDateTime.now().plusYears(100);
 
         boolean categoryIdsEmpty = (categories == null || categories.isEmpty());
 
@@ -239,7 +276,11 @@ public class EventServiceImpl implements EventService {
                 ? PageRequest.of(from / size, size, Sort.by(Sort.Direction.ASC, "eventDate"))
                 : PageRequest.of(from / size, size);
 
-        var pageEntities = events.publicSearch(text, paid, categoryIdsEmpty, categories, start, end, page);
+        String pattern = (text == null || text.isBlank())
+                ? null
+                : "%" + text.toLowerCase(java.util.Locale.ROOT) + "%";
+
+        var pageEntities = events.publicSearch(pattern, paid, categoryIdsEmpty, categories, start, end, page);
         List<Event> entityList = pageEntities.getContent();
 
 
@@ -252,7 +293,7 @@ public class EventServiceImpl implements EventService {
                 .orElse(LocalDateTime.now().minusYears(100));
         LocalDateTime statsEnd = LocalDateTime.now();
 
-        Map<String, Long> viewsMap = getViews(uris, statsStart, statsEnd);
+        Map<String, Long> viewsMap = getViews(uris, statsStart, statsEnd, false);
 
 
         var ids = entityList.stream().map(Event::getId).toList();
@@ -301,36 +342,53 @@ public class EventServiceImpl implements EventService {
 
         saveHit(request);
 
-        String uri = "/events/" + e.getId();
-        LocalDateTime start = (e.getPublishedOn() != null) ? e.getPublishedOn() : e.getCreatedOn();
+        LocalDateTime start = (e.getPublishedOn() != null ? e.getPublishedOn() : e.getCreatedOn())
+                .minusYears(100);
         LocalDateTime end = LocalDateTime.now();
-        long views = getViews(List.of(uri), start, end).getOrDefault(uri, 0L);
+
+        String uri = "/events/" + e.getId();
+        long views = getViews(List.of(uri), start, end, true).getOrDefault(uri, 0L);
         int confirmed = getConfirmedFor(e.getId());
         return EventMapper.toFullDto(e, confirmed, views);
     }
 
     private void saveHit(HttpServletRequest req) {
+        EndpointHit hit = new EndpointHit();
+        hit.setApp(appName);
+        hit.setUri(req.getRequestURI());
+
+        String xfwd = req.getHeader("X-Forwarded-For");
+        String ip = Optional.ofNullable(xfwd)
+                .map(v -> v.split(",")[0].trim())
+                .filter(v -> !v.isEmpty())
+                .orElse(req.getRemoteAddr());
+        hit.setIp(ip);
+
+        hit.setTimestamp(LocalDateTime.now().format(FMT));
+
         try {
-            EndpointHit hit = new EndpointHit();
-            hit.setApp(appName);
-            hit.setUri(req.getRequestURI());
-            hit.setIp(Optional.ofNullable(req.getHeader("X-Forwarded-For")).orElse(req.getRemoteAddr()));
-            hit.setTimestamp(LocalDateTime.now().format(FMT));
             statsClient.saveHit(hit);
+
+            System.out.println("[stats] saved hit app=" + appName +
+                    " uri=" + hit.getUri() + " ip=" + ip);
         } catch (Exception ex) {
-            //skip
+            System.err.println("[stats] saveHit failed: " + ex.getMessage());
+
         }
     }
 
-    private Map<String, Long> getViews(Collection<String> uris, LocalDateTime start, LocalDateTime end) {
+    private Map<String, Long> getViews(Collection<String> uris, LocalDateTime start, LocalDateTime end, boolean unique) {
         try {
-            List<ViewStats> stats = statsClient.getStats(start, end, new ArrayList<>(uris), false);
+            List<ViewStats> stats = statsClient.getStats(start, end, new ArrayList<>(uris), unique);
+            System.out.println("[stats] getViews unique=" + unique + " uris=" + uris +
+                    " range=[" + start + " .. " + end + "] resp=" + stats);
             Map<String, Long> map = new HashMap<>();
             for (ViewStats s : stats) {
-                map.put(s.getUri(), s.getHits());
+                map.merge(s.getUri(), s.getHits(), Long::sum);
             }
             return map;
         } catch (Exception ex) {
+            System.err.println("[stats] getViews failed: " + ex.getMessage());
             return Collections.emptyMap();
         }
     }

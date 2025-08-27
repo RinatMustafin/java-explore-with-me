@@ -62,6 +62,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ewm
       STATS_SERVER_URL: http://stats-server:9090
       SERVER_PORT: 8080
+      STATS_APP: ewm-service
     depends_on:
       ewm-db:
         condition: service_healthy

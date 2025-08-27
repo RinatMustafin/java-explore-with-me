@@ -2,9 +2,10 @@ package ru.yandex.ewm.mapper;
 
 import ru.yandex.ewm.dto.compilation.CompilationDto;
 import ru.yandex.ewm.dto.compilation.NewCompilationDto;
+import ru.yandex.ewm.dto.event.EventShortDto;
 import ru.yandex.ewm.model.Compilation;
 
-import java.util.ArrayList;
+import java.util.List;
 
 public class CompilationMapper {
     public static Compilation toEntity(NewCompilationDto dto) {
@@ -17,12 +18,12 @@ public class CompilationMapper {
         return c;
     }
 
-    public static CompilationDto toDto(Compilation c) {
+    public static CompilationDto toDto(Compilation c, List<EventShortDto> events) {
         return new CompilationDto(
                 c.getId(),
                 c.getTitle(),
                 c.isPinned(),
-                new ArrayList<>(c.getEventIds())
+                events
         );
     }
 }

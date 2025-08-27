@@ -10,6 +10,7 @@ public class StatsClientConfig {
 
     @Bean
     public StatsClient statsClient(@Value("${stats.server.url}") String baseUrl) {
+        System.out.println("[stats] baseUrl=" + baseUrl);
         return new StatsClient(baseUrl);
     }
 }

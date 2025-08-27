@@ -1,11 +1,10 @@
 package ru.yandex.ewm.model;
 
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import jakarta.persistence.*;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -26,8 +25,6 @@ public class Compilation {
     @Column(nullable = false)
     private boolean pinned = false;
 
-    // Пока Event не реализован, держим только таблицу связей. FK добавим позже.
-    // Создадим промежуточную таблицу без жёсткой JPA-ссылки на Event:
     @ElementCollection
     @CollectionTable(
             name = "compilation_events",
@@ -35,5 +32,6 @@ public class Compilation {
                     foreignKey = @ForeignKey(name = "fk_compilation_events_compilation"))
     )
     @Column(name = "event_id", nullable = false)
+    @OrderColumn(name = "pos")
     private Set<Long> eventIds = new LinkedHashSet<>();
 }
