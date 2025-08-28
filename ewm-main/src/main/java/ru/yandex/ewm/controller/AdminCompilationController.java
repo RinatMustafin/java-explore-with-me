@@ -18,19 +18,21 @@ public class AdminCompilationController {
 
     private final CompilationService service;
 
+    public static final String ID = "/{compId}";
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CompilationDto create(@Valid @RequestBody NewCompilationDto dto) {
         return service.create(dto);
     }
 
-    @DeleteMapping("/{compId}")
+    @DeleteMapping(ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long compId) {
         service.delete(compId);
     }
 
-    @PatchMapping("/{compId}")
+    @PatchMapping(ID)
     public CompilationDto update(@PathVariable long compId,
                                  @Valid @RequestBody UpdateCompilationRequest dto) {
         return service.update(compId, dto);

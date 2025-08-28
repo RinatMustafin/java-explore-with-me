@@ -27,7 +27,6 @@ public class ErrorHandler {
         return new ResponseEntity<>(body, status);
     }
 
-    // 400 — некорректный запрос/валидация
     @ExceptionHandler({
             MethodArgumentNotValidException.class,
             ConstraintViolationException.class,
@@ -46,7 +45,6 @@ public class ErrorHandler {
         return new ResponseEntity<>(body, status);
     }
 
-    // 404 — не найдено
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(NotFoundException e) {
         HttpStatus status = HttpStatus.NOT_FOUND;
@@ -59,20 +57,18 @@ public class ErrorHandler {
         return new ResponseEntity<>(body, status);
     }
 
-    // 409 — конфликт правил/состояний
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiError> handleConflict(ConflictException e) {
         HttpStatus status = HttpStatus.CONFLICT;
         ApiError body = ApiError.of(
                 e.getMessage(),
-                "Конфликт правил",
+                "Запрос не может быть выполнен из-за конфликта с текущим состоянием ресурса",
                 status.value(),
                 status.name()
         );
         return new ResponseEntity<>(body, status);
     }
 
-    // 409 — нарушение уникальности/целостности в БД
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException e) {
         HttpStatus status = HttpStatus.CONFLICT;

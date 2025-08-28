@@ -23,6 +23,8 @@ public class PrivateEventController {
 
     private final EventService service;
 
+    public static final String ID = "/{eventId}";
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public EventFullDto create(@PathVariable long userId,
@@ -37,13 +39,13 @@ public class PrivateEventController {
         return service.getUserEvents(userId, from, size);
     }
 
-    @GetMapping("/{eventId}")
+    @GetMapping(ID)
     public EventFullDto getUserEvent(@PathVariable long userId,
                                      @PathVariable long eventId) {
         return service.getUserEvent(userId, eventId);
     }
 
-    @PatchMapping("/{eventId}")
+    @PatchMapping(ID)
     public EventFullDto updateUserEvent(@PathVariable long userId,
                                         @PathVariable long eventId,
                                         @Valid @RequestBody UpdateEventUserRequest dto) {

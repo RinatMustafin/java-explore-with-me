@@ -17,6 +17,8 @@ import ru.yandex.ewm.service.CategoryService;
 @Validated
 public class AdminCategoryController {
 
+    public static final String ID = "/{catId}";
+
     private final CategoryService service;
 
     @PostMapping
@@ -25,13 +27,13 @@ public class AdminCategoryController {
         return service.create(dto);
     }
 
-    @PatchMapping("/{catId}")
+    @PatchMapping(ID)
     public CategoryDto update(@PathVariable long catId,
                               @Valid @RequestBody CategoryDto dto) {
         return service.update(catId, dto);
     }
 
-    @DeleteMapping("/{catId}")
+    @DeleteMapping(ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long catId) {
         service.delete(catId);
