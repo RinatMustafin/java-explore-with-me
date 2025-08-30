@@ -31,35 +31,44 @@ services:
       stats-db:
         condition: service_healthy
 
+  ewm-db:
+    image: postgres:16.1
+    container_name: ewm-db
+    environment:
+      POSTGRES_DB: ewm
+      POSTGRES_USER: ewm
+      POSTGRES_PASSWORD: ewm
+    ports:
+      - "5433:5432"
+    volumes:
+      - ewm-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ewm -d ewm"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
   ewm-service:
     build:
       context: ./ewm-main
+      dockerfile: Dockerfile
+    container_name: ewm-service
     ports:
       - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://ewm-db:5432/ewm
+      SPRING_DATASOURCE_USERNAME: ewm
+      SPRING_DATASOURCE_PASSWORD: ewm
+      STATS_SERVER_URL: http://stats-server:9090
+      SERVER_PORT: 8080
+      STATS_APP: ewm-service
     depends_on:
-      - ewm-db
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-    networks:
-      - ewm-network
-
-  ewm-db:
-    image: postgres:16.1
-    container_name: ewm-main-db
-    environment:
-      POSTGRES_DB: ewm
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5555:5432"
-    networks:
-      - ewm-network
-    volumes:
-      - main-db-data:/var/lib/postgresql/data
+      ewm-db:
+        condition: service_healthy
+      stats-server:
+        condition: service_started
 
 volumes:
   stats-data:
-  main-db-data:
-
-networks:
-  ewm-network:
+  ewm-data:
