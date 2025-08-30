@@ -71,7 +71,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     public List<CommentPublicDto> getPublicByEvent(long eventId, int from, int size) {
         Event e = eventRepo.findById(eventId)
-                .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
+                .orElseThrow(() -> new NotFoundException(String.format("Event with id=%d was not found", eventId)));
         ensurePublished(e);
 
         PageRequest pr = PageRequest.of(from / size, size, Sort.by(Sort.Direction.DESC, "createdOn"));
@@ -116,12 +116,12 @@ public class CommentServiceImpl implements CommentService {
 
 
     private RuntimeException notFound(String message, long id) {
-        return new NotFoundException(message + " not found: id=" + id);
+        return new NotFoundException(String.format("%s not found: id=%d", message, id));
     }
 
     private void ensureOwner(long userId, Comment comment) {
         if (!comment.getAuthor().getId().equals(userId)) {
-            throw new NotFoundException("Comment with id=" + comment.getId() + " was not found");
+            throw new NotFoundException(String.format("Comment with id=%d was not found", comment.getId()));
         }
     }
 
@@ -133,7 +133,7 @@ public class CommentServiceImpl implements CommentService {
 
     private void ensurePublished(Event event) {
         if (event.getState() != EventState.PUBLISHED) {
-            throw new NotFoundException("Event with id=" + event.getId() + " was not found");
+            throw new NotFoundException(String.format("Event with id=%d was not found", event.getId()));
         }
     }
 }

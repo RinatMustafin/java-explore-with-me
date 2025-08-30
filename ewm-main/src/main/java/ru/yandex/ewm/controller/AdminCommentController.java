@@ -21,15 +21,17 @@ public class AdminCommentController {
 
     private final CommentService service;
 
+    private static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
+
     @GetMapping
     public List<CommentDto> search(@RequestParam(required = false) Long eventId,
                                    @RequestParam(required = false) Long authorId,
                                    @RequestParam(required = false) CommentStatus status,
                                    @RequestParam(required = false)
-                                   @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+                                       @DateTimeFormat(pattern = DATE_TIME_PATTERN)
                                    LocalDateTime rangeStart,
                                    @RequestParam(required = false)
-                                   @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+                                       @DateTimeFormat(pattern = DATE_TIME_PATTERN)
                                    LocalDateTime rangeEnd,
                                    @RequestParam(defaultValue = "0") @PositiveOrZero Integer from,
                                    @RequestParam(defaultValue = "10") @Positive Integer size) {
